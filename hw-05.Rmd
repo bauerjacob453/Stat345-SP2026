@@ -1,0 +1,82 @@
+---
+title: "STAT 345 Homework 5"
+author: "Jacob Bauer"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+```
+
+## Submissions
+For this homework, please submit your .rmd file, your knitted Word file, and two image files (described below) to Canvas by the posted due date. Graphs should be built using `ggplot2` functions throughout.
+
+## Best in Class Cars
+
+Continuing from the car plot (`hwy` vs `displ`) constructed in the labs, make the following modifications:
+
+- Change the legend title to be capitalized
+- Modify the class names to look more "professional"
+- Name the x- and y-axes to be more informative, and give the plot a title (name them individually, or use the `labs()` function as a layer)
+- Find the car with the highest `hwy` value for each `class`. Add labels for these cars.
+  - perhaps a new tibble just for the best-in-class cars is simplest
+  - use `geom_label` for the labels, or even better, `geom_label_repel` from the `ggrepel` package
+- Change the theme of the plot to something more pleasing
+- Change the colors used to be colorblind-friendly
+```{r}
+library(tidyverse)
+data(mpg)
+
+hwy_highest_mpg <- mpg %>%
+  group_by(class) %>%
+  filter(hwy == max(hwy))
+
+hwy_plt_scatter <- ggplot(data = mpg, aes(x = displ, y = hwy, col = class))
+hwy_plt_scatter + geom_point() + labs(x = "Displacement", y = "Miles Per Gallon", color = "Class", title = "Miles Per Gallon vs Displacement") + scale_color_discrete(labels = c("2seater" = "2 Seater", "compact" = "Compact", "midsize" = "Midsize", "minivan" = "Minivan", "pickup" = "Pickup", "subcompact" = "Subcompact", "suv" = "SUV")) + geom_label(data = hwy_highest_mpg, aes(label = model), size = 1.5) + theme_minimal() + scale_color_viridis_d()
+```
+
+Many of these steps can be accomplished when building the plot directly, but some (particularly the data manipulation steps) might be much simpler if completed prior to plotting. 
+
+## How to lie with data
+
+Find two separate data visualizations presented in popular media (news programs, political ads, or product ads are good sources) that misrepresent the data they are presenting. For each graphic (separately):
+
+1. Take a screenshot of the graphic, or download it directly (right click, save image as...). Make sure you save it in the same directory as your .rmd file. Modify the code chunk below to include the image. (Alternatively, you can provide a direct link to the image's url in the code chunk below. If you choose this, there is no need to submit the image files separately.)
+
+```{r fig.height=3}
+include_graphics("TruncatedYAxis.png")
+```
+
+2. Describe why the graphic is misleading. Provide as much detail as possible.
+
+  This graphic is misleading because they have truncated the y-axis. This makes it seem like the Democrats agreed far more with the court ruling than the other parties. It takes the small difference between the parties and spreads them way out, making it seem like there is a large difference when in reality there isn't. When someone is not looking very hard at the graph, they might not notice the small difference in percentages on the y-axis. It starts at 50 and only goes up to 64 percent. 
+  
+```{r fig.height=3}
+include_graphics("FloridaInvertY.jpeg")
+```
+  This graph is misleading because the y-axis is inverted. This can cause viewers of the graph to believe that after 2005, gun deaths in Florida decreased, when in reality they increased. Without looking deep into this graph it is hard to tell the y-axis is inverted, making this very dangerous and misleading. 
+3. Create a data visualization that addresses the problems you identified with the published graphic. You'll likely need to create some example data to accomplish this -- if so, do the best you can. Why is your graph a better representation of the data?
+
+```{r}
+truncated_y_data <- data.frame(Party = c("Democrat", "Republican", "Independent"), Percentage = c(62, 54, 54))
+
+truncated_y_plot <- ggplot(data = truncated_y_data, aes(x = Party, y = Percentage))
+
+truncated_y_plot + geom_bar(stat = "identity")
+```
+  My graph is a better representation of the data because it starts from 0 and does not truncate the y-axis. This allows for a clear representation of how close the parties were with agreeing and disagreeing with the court ruling. 
+  
+```{r}
+gun_deaths_data <- read_csv("gun_deaths_state_year.csv")
+gun_deaths_florida_data <- gun_deaths_data %>%
+  filter(state == "Florida")
+
+gun_deaths_plt <- ggplot(data = gun_deaths_florida_data, aes(x = year, y = deaths))
+gun_deaths_plt + geom_line(color = "red") + geom_point(color = "blue") + labs(title = "Gun Deaths Per Year in Florida", x = "Year", y = "Deaths")
+
+```
+  This plot is much better than the previous plot because it allows for the audience to easily see the uptrend in deaths over the years instead of trying to interpret an inverted y-axis graph. 

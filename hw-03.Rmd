@@ -1,0 +1,52 @@
+---
+title: "STAT 345 Homework 3"
+author: "Jacob Bauer"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Functions
+
+1. Write a function to compute a confidence interval around a mean. If the sample size is less than 30, your function should use a bootstrap distribution. If the sample size is at least 30, your function should use a t-distribution. Set the default confidence level to 0.95 (your function should allow for different confidence levels, though). Your function should be appropriately commented.
+
+```{r}
+confidence_function <- function(x, conf= 0.95) {
+  if(length(x) < 30) {
+    for (i in length(x)){
+      n <- sample(x, length(x), replace = TRUE, prob = NULL)
+      x[i] <- mean(n)
+    }
+    quantile_bootstrap <- quantile(x, probs = seq(0.025,0.975,0.95))
+    return(quantile_bootstrap)
+  } 
+  else {
+    t.test(x)
+    quantile_t <- quantile(x, probs = seq(0.025,0.975,0.95))
+    return(quantile_t)
+  }
+}
+```
+
+
+2. Test your function on the following datasets, which are random samples from a standard normal distribution. Do the confidence intervals you've created make sense? Can you identify a pattern? Explain.
+
+```{r}
+data_1 <- rnorm(n=10)
+data_2 <- rnorm(n=20)
+data_3 <- rnorm(n=40)
+data_4 <- rnorm(n=100)
+```
+
+```{r}
+confidence_function(data_1)
+confidence_function(data_2)
+confidence_function(data_3)
+confidence_function(data_4)
+```
+When looking at the confidence intervals, all of them do make sense. They make sense because on a normal distribution you would expect the values of the lower percentile to be less than 0 and the higher percentile to be above 0. In this case it is hard to identify a pattern that is taking place. An estimate could be as the sample size increases, the more normal the distribution becomes. this is due to the centeral limit theorem. 

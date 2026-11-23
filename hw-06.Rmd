@@ -1,0 +1,198 @@
+---
+title: "STAT 345 Homework 6"
+author: "Jacob Bauer"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab Thirteen Work
+
+Suppose that you’ve been given raw registration data for a university event. Students entered their contact info in inconsistent ways, and your job is to clean and extract usable information. The code chunk below creates a tibble of 15 of these registrations. 
+
+```{r}
+library(tidyverse)
+library(stringr)
+
+registrations <- tibble(
+  id = 1:15,
+  contact_info = c(
+    "John Doe, johndoe@gmail.com, 608-555-1234",
+    "Jane Smith | (608) 555 9876 | jane_smith@outlook.com",
+    "Bob: bob123@yahoo.com",
+    "Call me at 608.555.0000 - Mike",
+    "Sarah (sarah@school.edu)",
+    "No contact info provided",
+    "Reach me: student@@college..edu",
+    "Alex - 6085554321 - alex99@gmail.com",
+    "Chris: chris.p.bacon@uni.edu, phone: (608)555-2222",
+    "Email only: cool_student@college.org",
+    "Phone only: 608 555 9999",
+    "Emergency contact: mom 715-555-1212",
+    "Contact: invalid_email@.com",
+    "Best way: text 608-555-ABCD",
+    "Alternate: first.last@company.co.uk"
+  )
+)
+```
+
+
+1. Which rows contain \emph{valid-looking} email addresses?
+```{r}
+email_regex <- "[A-Za-z_.]+[0-9]*@[A-Za-z]+.[a-z]+"
+str_view_all(registrations$contact_info, email_regex)
+valid_emails <- str_extract_all(registrations$contact_info, email_regex)
+```
+
+2. Create a new column in the `registrations` tibble containing the email addresses.
+```{r}
+registrations <- registrations %>%
+  mutate(email_adresses = valid_emails)
+```
+
+3. Clean and standardize the email addresses in the new column.
+```{r}
+
+```
+
+4. Which rows contain phone numbers?
+```{r}
+phones_regx <- "\\(?[0-9]{3}[\\)-.\\s]{0,2}[0-9]{3}[\\)-.\\s]{0,2}[0-9A-Z]{4}"
+str_view_all(registrations$contact_info, phones_regx)
+valid_phones <- str_extract_all(registrations$contact_info, phones_regx)
+```
+
+5. Create a new column in the `registrations` tibble containing the phone numbers.
+```{r}
+registrations <- registrations %>%
+  mutate(phone_numbers = valid_phones)
+```
+
+6. Clean and standardize the phone numbers in the new column.
+```{r}
+registrations <- registrations %>%
+  mutate(phone_numbers = str_replace_all(phone_numbers, "[^0-9A-Z]", ""), phone_numbers = str_replace(phone_numbers, "([0-9]{3})([0-9]{3})([0-9A-Z]{4})", "(\\1) \\2-\\3"))
+```
+
+7. Flag suspicious registrations (with a new column). These should have no phone AND no email address, or are otherwise clearly bad patterns.
+```{r}
+registrations <- registrations %>%
+  mutate(suspicious = !(str_detect(phone_numbers, phones_regx) | str_detect(email_adresses, email_regex)))
+```
+
+
+## Lab Fourteen Work
+
+Project Gutenberg is a digital archive of public domain books. The R package `gutenbergr` facilitates the importation of these texts into R.
+
+You can see the books that are available with `gutenberg_metadata`
+```{r}
+library(gutenbergr)
+library(tidytext)
+library(textdata)
+library(tidyverse)
+```
+
+1. Use `str_detect` to find the ID of the novel Pride and Prejudice.
+```{r}
+which(str_detect(gutenberg_metadata$title, "Pride and Prejudice"))
+```
+
+2. We notice that there are several versions. The `gutenberg_works()` function filters this table to remove replicates and include only English language works. Read the help file and use this function to find the ID for Pride and Prejudice.
+```{r}
+gutenberg_works(title == "Pride and Prejudice")
+```
+
+3. Use the `gutenberg_download` function to download the text for Pride and Prejudice. Save it to an object called book.
+```{r}
+book <- gutenberg_download(gutenberg_id = "1342")
+```
+
+4. Add two variables to this `book` object: line numbers and page numbers. For pages, you can assume that there are 80 lines per page.
+```{r}
+book <- book %>% 
+  mutate(line_numbers = 1:length(book$text)) %>%
+  mutate(page_numbers = (line_numbers %/% 80) + 1)
+```
+
+5. Use the `tidytext` package to create a tidy table with all the words in the text. Save the table in an object called `book_words`
+```{r}
+book_words <- book %>%
+  select(line_numbers, page_numbers, text) %>%  
+  unnest_tokens(word, text) %>%               
+  select(line_numbers, page_numbers, word) 
+```
+
+6. Add a variable to this `book_words` object giving the index of the word. 
+```{r}
+book_words <- book_words %>%
+  mutate(index = 1:length(word))
+```
+
+7. Remove the stop words and numbers from the words object. 
+```{r}
+book_words <- book_words %>%
+  filter(!word %in% stop_words$word)
+```
+
+8. Now use the AFINN lexicon to assign a sentiment value to each word.
+```{r}
+afinn <- get_sentiments("afinn")
+book_words <- book_words %>% 
+  inner_join(afinn, by = "word")
+```
+
+9. Make a plot of sentiment score versus location in the book and add a smoother.
+```{r}
+sentiment_by_page <- book_words %>%
+  group_by(page_numbers) %>%
+  summarize(sentiment = sum(value))
+
+sentiment_plt <- ggplot(sentiment_by_page, aes(x = page_numbers, y = sentiment)) 
+sentiment_plt + geom_line() + geom_smooth(se = FALSE) + labs(title = "Sentiment Over Pride and Prejudice", x = "Page Number", y = "Sentiment Score")
+
+
+```
+
+10. Plot that average score by page. Add a smoother that appears to go through data. (NOTE: the lab file had information about 300 words per page -- you can still use this if you want, or you can use the page numbers already created.)
+```{r}
+sentiment_by_page_2 <- book_words %>%
+  group_by(page_numbers) %>%
+  summarize(avg_sentiment = mean(value, na.rm = TRUE))
+
+sentiment_plt_2 <- ggplot(sentiment_by_page_2, aes(x = page_numbers, y = avg_sentiment)) 
+sentiment_plt_2 + geom_line(color = "blue") + geom_smooth(se = FALSE, method = "loess", span = 0.2, color = "red") + labs(title = "Average Sentiment Over Pride and Prejudice", x = "Page Number", y = "Average Sentiment Score")
+```
+
+11. Make a similar plot, but looking at average score by chapter. (How can you identify chapters? Hint: a regular expression?) 
+```{r}
+chapter_info <- book %>%
+  mutate(chapter_name = str_extract(text, regex("^CHAPTER\\s+\\w+", ignore_case = TRUE))) %>%
+  fill(chapter_name) %>%                    
+  mutate(chapter_num = as.integer(factor(chapter_name))) %>%  
+  select(line_numbers, chapter_num)
+
+book_words <- book_words %>%
+  left_join(chapter_info, by = "line_numbers")
+
+sentiment_by_chapter <- book_words %>%
+  group_by(chapter_num) %>%
+  summarize(avg_sentiment = mean(value, na.rm = TRUE))
+
+ggplot(sentiment_by_chapter, aes(x = chapter_num, y = avg_sentiment)) +
+  geom_line(color = "steelblue") +
+  geom_smooth(se = FALSE, method = "loess", span = 0.3, color = "darkred") +
+  labs(
+    title = "Average Sentiment by Chapter in Pride and Prejudice",
+    x = "Chapter",
+    y = "Average Sentiment Score"
+  )
+
+
+```
+

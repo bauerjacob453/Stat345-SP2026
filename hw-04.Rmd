@@ -1,0 +1,110 @@
+---
+title: "STAT 345 Homework 5"
+author: "Jacob Bauer"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Lab Work
+
+The `billboard.csv` dataset records the date a song first entered the Billboard Top 100 in the year 2000. It has variables for artist, track, date.entered, rank and week. The rank in each week after it enters the top 100 is recorded in 76 columns, wk1 to wk76. If a song is in the Top 100 for less than 76 weeks the remaining columns are filled with missing values. 
+
+This form of storage is not tidy, but it is useful for data entry. It reduces duplication since otherwise each song in each week would need its own row, and song metadata like title and artist would need to be repeated. 
+
+1. Read in the data. Make sure to check the file, though!
+```{r}
+library(tidyverse)
+billboard_data <- read_csv("billboard-2.csv")
+
+```
+
+2. Inspect the data. What variable types do you have?
+```{r}
+head(billboard_data)
+# Variable types: chr, dbl, date, S3: hms, lgl
+```
+
+3. Tidy the data. You want to have each weekly rank entered on separate rows.
+```{r}
+billboard_data <- pivot_longer(billboard_data, "wk1":"wk76", names_to = "Week")
+
+```
+
+4. Convert the week data (e.g., `wk1`, `wk20`) into numeric values. There are many approaches here, but `separate` would likely work well. 
+```{r}
+billboard_data <- separate(billboard_data, col = "Week", c("wk", "Week"), sep = 2) %>%
+  mutate(., Week = as.numeric(Week))
+```
+```{r}
+billboard_data <- select(billboard_data, -wk)
+```
+
+
+5. Let's look at the growth and (thankful) decline of a hit single. Create a subset of the data that only includes Eiffel 65, then plot the rank of their single "Blue" over time.
+```{r}
+blue_data <- filter(billboard_data, artist == "Eiffel 65", track == "Blue")
+blue_data <- select(blue_data, Week, value)
+qplot(data = blue_data, x = Week, y = value)
+```
+
+6. Find the best rank for each track separately. Plot these "best ranks" and comment on the result. 
+```{r}
+best_ranks <- billboard_data %>%
+  group_by(track) %>%
+  summarize(best_rank = min(value, na.rm = TRUE))
+best_ranks_plot <- ggplot(data = best_ranks, aes(x = best_rank))
+best_ranks_plot + geom_histogram(binwidth = 5)
+
+```
+
+
+## Religion and Income
+
+The `pewdata.csv` dataset explores the relationship between income and religion in the US. It comes from a report produced by the Pew Research Center, an American think-tank that collects data on attitudes to topics ranging from religion to the internet, and produces many reports that contain datasets in this format.
+```{r}
+religion_data <- read_csv("pewdata.csv")
+```
+
+7. Arrange the data in tidy format.
+```{r}
+religion_data <- pivot_longer(religion_data, "<$10k" : "Don't know/refused", names_to = "salary")
+```
+
+8. The income range information should be considered a factor. Convert this variable to a factor and define a proper ordering of the factor levels. 
+```{r}
+religion_data <- religion_data %>%
+  mutate(salary = as.factor(salary))
+```
+9. Create a new variable in your tidy data that represents the numeric midpoints of the income ranges.
+```{r}
+religion_data <- religion_data %>%
+  mutate(midpoint = case_when(salary == "<$10k" ~ 5, salary == "$10-20k" ~ 15, salary == "$20-30k" ~ 25, salary == "$30-40k" ~ 35, salary == "$40-50k" ~ 45, salary == "$50-75k" ~ 62.5, salary == "$75-100k" ~ 87.5, salary == "$100-150k" ~ 125, salary == ">150k" ~ 150))
+
+# Had to use ai to figure out how to calculate the midpoints, instead of calculating the midpoints, I used case_when() to allow the code to read the salary column and assign a midpoind based on the factor that was in the row. 
+```
+
+10. Calculate the average income for each religion. Which religion is associated with the highest average income? What is the range of averages?
+```{r}
+avg_income <- religion_data %>% 
+  group_by(religion) %>%
+  summarize(avg_income = weighted.mean(midpoint, value, na.rm = TRUE)) %>%
+  arrange(desc(avg_income))
+
+top_n(avg_income, 1)
+
+range(avg_income$avg_income)
+```
+
+11. The average is a point estimate, and doesn't tell the whole story. Create a graphical display of your tidy dataset. This display can be in the form of your choosing (type of plot, etc.), but I'd recommend a density plot (bar charts, line graphs, etc. could also be appropriate). Represent as much information in your tidy dataset as you can in a single plot.
+```{r}
+avg_income_plt <- ggplot(data = avg_income, aes(x = religion, y = avg_income)) 
+avg_income_plt + geom_col() + coord_flip()
+# My labels were overlapping so I asked ai how to fix that and they showed me there is a cool function that allows me to flip my axes. 
+```
+

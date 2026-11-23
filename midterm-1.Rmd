@@ -1,0 +1,214 @@
+---
+title: "STAT 345 Midterm Project"
+font: 12pt
+author: "Jacob Bauer"
+date: "2026-04-03"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+> "Our offense is like the Pythagorean Theorem. There is no answer!", _Shaquille O'Neal_
+
+## The Background
+
+Your role for the midterm project is that of data analyst intern at an NBA (professional basketball) team. Your direct supervisor (also part of the analytics team) has asked you to create a data visualization to illustrate how (or if) the team's shots have changed over time. After some initial clarifying questions, your supervisor confessed that they had seen some pretty cool shot charts at http://savvastjortjoglou.com/nba-shot-sharts.html and would like to extend the ideas a bit. 
+
+Your data for the midterm project may come from a variety of sources, including the NBA directly, as well as Basketball-Reference, HoopsHype, and others. There are several ways to access the data, but perhaps the simplest is through a package. There are a few options (each with some benefits, drawbacks, and potential headaches):
+
+- `nbastatR`
+- `hoopR`
+- `AdvancedBasketballStats`
+
+Note: if you would prefer to analyze college basketball, packages exist for that too (such as `cbbdata`). If you would prefer to look into a different sport, we can investigate that as well. Please let me know in advance if you intend to go down one of these alternate routes. 
+
+
+## The Tasks
+
+1. (30 points) Produce a graphic displaying the shot locations for a particular team over several years. Some notes:
+
+   - Colors should be chosen to reflect the team, if possible.
+   - There are likely many overlaid points -- handle this by either binning these by location, or use opacity and size.
+   - Incorporate information about whether the shot was made or not (shape, color, etc.).
+   - The graphic should be well-labeled, titled, etc.
+   - Start with a graph for a single year, then extend to several years. Up to 20 years of shot data is available. Either facet these by year or animate using the years.
+   - You'll want to figure out what the coordinates mean somehow. This might be through the documentation, but could also be determined using aspects of the data itself and the dimensions of an NBA court.
+    - Put a basketball court on the background of the image (you'll need to scale it appropriately).
+```{r}
+#install.packages("nbastatR")
+#install.packages("hoopR")
+#install.packages("AdvancedBasketballStats")
+#install.packages("hexbin")
+#install.packages("sportyR")
+library(tidyverse)
+library(AdvancedBasketballStats)
+library(hoopR)
+library(hexbin)
+library(sportyR)
+bucks_data_2023 <- read_csv("bucks2023.csv")
+bucks_data_2023 <- filter(bucks_data_2023, locationY < 400)
+bucks_data_2023 <- bucks_data_2023 %>%
+  mutate(isShotMade = as.numeric(isShotMade)) %>%
+  mutate(isShotAttempted = as.numeric(isShotAttempted))
+```
+```{r}
+seasons <- 2019:2023
+
+pbp_all <- lapply(seasons, function(season) {
+  
+  df <- load_nba_pbp(season = season)
+  
+  # Convert ALL columns to character to avoid type conflicts
+  df <- df %>% mutate(across(everything(), as.character))
+  
+  df$season <- season
+  
+  return(df)
+})
+
+# Now safely bind
+pbp_all <- bind_rows(pbp_all)
+
+bucks_shots_all <- pbp_all %>%
+  filter(
+    home_team_abbrev == "MIL" | away_team_abbrev == "MIL",
+    shooting_play == "TRUE"   # now character!
+  ) %>%
+  mutate(
+    x = as.numeric(coordinate_x),
+    y = as.numeric(coordinate_y),
+    made = as.numeric(as.numeric(score_value) > 0),
+    season = as.numeric(season)
+  ) %>%
+  filter(!is.na(x), !is.na(y)) %>%
+  select(season, game_id, x, y, made)
+```
+
+
+```{r}
+# Transform the full shots data frame
+bucks_shots_half_all <- bucks_shots_all %>%  # <- your full combined data frame
+  # Step 1: rotate coordinates to match court orientation
+  rename(temp = x) %>%
+  mutate(
+    x = y,       # rotated x
+    y = -temp    # flip y upside down
+  ) %>%
+  select(-temp) %>%
+  
+  # Step 2: shift y so it starts at 0 at baseline
+  group_by(season) %>%                  # shift within each season
+  mutate(y = y - min(y)) %>%
+  ungroup() %>%
+  
+  # Step 3: filter half-court
+  filter(y >= 0 & y <= 47) %>%
+  filter(x >= -25 & x <= 25)
+```
+
+
+
+```{r}
+ggplot(data=data.frame(x=1,y=1),aes(x,y))+
+   ###outside box:
+geom_path(data=data.frame(x=c(-25,-25,25,25,-25),y=c(0,47,47,0,0)))+
+   ###solid FT semicircle above FT line:
+geom_path(data=data.frame(x=c(-6000:(-1)/1000,1:6000/1000),y=c(19+sqrt(6^2-c(-6000:(-1)/1000,1:6000/1000)^2))),aes(x=x,y=y))+
+   ###dashed FT semicircle below FT line:
+geom_path(data=data.frame(x=c(-6000:(-1)/1000,1:6000/1000),y=c(19-sqrt(6^2-c(-6000:(-1)/1000,1:6000/1000)^2))),aes(x=x,y=y),linetype='dashed')+
+   ###key:
+geom_path(data=data.frame(x=c(-8,-8,8,8,-8),y=c(0,19,19,0,0)))+
+   ###box inside the key:
+geom_path(data=data.frame(x=c(-6,-6,6,6,-6),y=c(0,19,19,0,0)))+
+   ###restricted area semicircle:
+geom_path(data=data.frame(x=c(-4000:(-1)/1000,1:4000/1000),y=c(5.25+sqrt(4^2-c(-4000:(-1)/1000,1:4000/1000)^2))),aes(x=x,y=y))+
+   ###halfcourt semicircle:
+geom_path(data=data.frame(x=c(-6000:(-1)/1000,1:6000/1000),y=c(47-sqrt(6^2-c(-6000:(-1)/1000,1:6000/1000)^2))),aes(x=x,y=y))+
+   ###rim:
+geom_path(data=data.frame(x=c(-750:(-1)/1000,1:750/1000,750:1/1000,-1:-750/1000),y=c(c(5.25+sqrt(0.75^2-c(-750:(-1)/1000,1:750/1000)^2)),c(5.25-sqrt(0.75^2-c(750:1/1000,-1:-750/1000)^2)))),aes(x=x,y=y))+
+   ###backboard:
+geom_path(data=data.frame(x=c(-3,3),y=c(4,4)),lineend='butt')+
+   ###three-point line:
+geom_path(data=data.frame(x=c(-22,-22,-22000:(-1)/1000,1:22000/1000,22,22),y=c(0,169/12,5.25+sqrt(23.75^2-c(-22000:(-1)/1000,1:22000/1000)^2),169/12,0)),aes(x=x,y=y))+
+   ###fix aspect ratio to 1:1
+coord_fixed()+
+   ###hex graph
+ stat_summary_hex(
+    data = bucks_shots_half_all,
+    aes(x = x, y = y, z = made, alpha = after_stat(value)),
+    fun = mean,
+    bins = 40,
+    fill = "blue"
+  )+
+   ###facet by season
+   facet_wrap(~season) +
+   labs(title = "Bucks Half-Court Shot Charts by Season", alpha = "FG%") +
+   theme_minimal() +
+   scale_alpha(range = c(0.2,1))
+```
+
+   
+2. (30 points) Summarize the graphic/series of graphics into a digestible, bullet-point brief report for front-office staff. Some notes:
+
+   - The main body of the report should be very brief -- just the graphic(s) and the bullet-pointed list of findings, which should be short and clear.
+   - Include a more detailed explanation of these bullet points, for further reading by those interested. This section should follow the bullet-point section, but should be organized similarly for reference. 
+   - Your report to the front-office shouldn't include any code.
+   - This report should be generated using RMarkdown. However, the choice of output type (Word, PDF, or HTML) is up to you (you could even make slides if you want to). 
+   
+
+   
+3. (30 points) Write and document clean, efficient, reproducible code. Some notes:
+
+   - This code will be viewed by your direct supervisor.
+   - The code file should include your code to gather, join, and clean the data; the code to generate the graphic(s) presented; and your commentary on the results (so, a single .rmd file, or an .rmd file that sources an .r file).
+   - Your code should be clean, organized, and reproducible. Remove unnecessary/scratch/exploratory code.
+   - Your code should be well commented. In particular, any decisions or judgement calls made in the analysis process should be explained/justified. Sections of code should be identified even if not functionalized (including purpose, data/argument inputs, analysis outputs).
+   
+4. (10 points) Above and Beyond. Choose either option below. You are welcome to explore both, but only one is required. 
+
+  - Option 1: Explore the data a bit, and create a graphic that uses (or incorporates) different information than what was used above. Some notes:
+    - Create an additional graphic that incorporates at least one additional variable not previously used (this should add to the graphic in part 1). The additional data should be drawn from a different dataset (function call) than the original graphic used. These two (or more) datasets may need to be joined appropriately.
+    - You can either add more information to the plot above, or create a different plot. 
+     - Formatting, labelling, etc. are all important here too.
+    - Adding marginal densities or other "bells and whistles" might offer additional insight.
+    - This graphic should be included at the end of the report (after the more detailed explanations). 
+     - You should include a brief description of the graphic (highlighting the different/additional information used).
+  - Option 2: If the NBA were to incorporate a 4-point shot, where would you draw a 4-point arc? Some notes:
+    - You likely should base your decision at least partly on proportion of shots made from a given range. You might consider an expected value calculation here.
+    - Your arc can be shaped as you see fit; simple arcs are sufficient for this exploration.
+    - Provide an example of a consequence (positive or negative) if a 4-point shot was incorporated. (e.g., "my_favorite_player's season point total would increase by x%")
+    - You do not need to create a plot representing your arc, though you are welcome to do so!
+
+## 4 Point Line
+1. The 4 point line would add excitment to the league.
+2. Some players have become extremly efficent at the 3 point shot over the years so it could add a new element to their game that they would get to work on.
+3. Adding this line would also reward the difficulty of these long range shots that players are already taking, plus it could make an impossible to win game possible.
+
+From an expected value perspective:
+- A typical three-point shot (~35% success rate) yields:
+  - 0.35 × 3 = 1.05 expected points
+- A long-distance shot (~25% success rate) would yield:
+  - 0.25 × 4 = 1.00 expected points
+
+This keeps the 4-point shot competitive but not overpowered.
+
+The 4 point line would not stretch into the corners of the basketball court but would instead be multiple feet behind the top of the key and wings. It would roughly be between 28-30 feet from the basket and would allow for a competitive change in peoples play style without being too overpowered.
+
+Positive Impacts:
+- Increased spacing on offense
+- More exciting, high-risk shot attempts
+- Greater strategic diversity
+
+Overall the addition of a 4 point line would be a fun and exciting experience for the fans and the players without being too overpowered.
+  
+## The Deliverables
+
+1. Upload your report and code file(s) to GitHub by 5:00pm on Friday, April 3.
+2. Submit (on Canvas) your report, code, and link to your GitHub repository by 5:00pm on Friday, April 3.
+  
+  
+  
+  
+
+

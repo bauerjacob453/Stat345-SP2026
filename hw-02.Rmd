@@ -1,0 +1,172 @@
+---
+title: "STAT 345 Homework 2"
+author: "Jacob Bauer"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Your homework must be submitted in R Markdown format as well as Word format. Your responses must be supported by both textual explanations and the code you generate to produce your result. (Just examining your various objects in the "Environment" section of RStudio is insufficient -- you must use scripted commands.) Take some time to double-check your resulting Word file to ensure it is formatted well (if not, fix your .Rmd file and re-knit).
+
+## Lab Cleanup
+
+If you weren't able to complete Lab Four, here's your chance! The next several questions are duplicates of Lab Four.
+
+R includes a number of pre-specified data objects as part of its default installation. We will load and manipulate one of these, a data frame of 93 cars with model year 1993. Begin by ensuring that you can load this data with the commands
+
+```{r}
+library(MASS)
+data(Cars93)
+```
+
+Begin by examining the data frame with the command `View(Cars93)` to understand the underlying object. You will need to use functions and other commands to extract elements for this assignment. (Do not include `View(Cars93)` in your .rmd file -- this will likely cause issues with knitting your Word document.)
+
+1.  Obtain a `summary()` of the full data structure. Can you tell from this how many rows are in the data? If so, say how; if not, use another method to obtain the number of rows.
+
+```{r}
+summary(Cars93)
+```
+
+2.  What is the mean price of a car with a rear-wheel drive train?
+
+```{r}
+rear_wheel_drive_price <- Cars93[Cars93$DriveTrain=="Rear", "Price" ]
+mean(rear_wheel_drive_price)
+```
+
+3.  What is the minimum horsepower of all cars with capacity for 7 passengers? With a capacity of at least 6 passengers?
+
+```{r}
+horsepower_cars_7 <- Cars93[Cars93$Passengers == 7 , "Horsepower"]
+min(horsepower_cars_7)
+horsepower_cars_6_more <- Cars93[Cars93$Passengers >= 6 , "Horsepower"]
+min(horsepower_cars_6_more)
+```
+
+4.  Assuming that these cars are exactly as fuel efficient as this table indicates, find the cars that have the maximum, minimum and median distance travellable for highway driving. You will need at least two columns to work this out; why those two?
+
+```{r}
+Cars93 <- cbind(Cars93, Distance = c(Cars93$MPG.highway * Cars93$Fuel.tank.capacity))
+max_distance <- Cars93[which.max(Cars93$Distance) , "Make"]
+max_distance
+min_distance <- Cars93[which.min(Cars93$Distance) , "Make"]
+min_distance
+median_distance <- Cars93[which(Cars93$Distance == median(Cars93$Distance)), "Make"]
+median_distance
+```
+
+## More data.frame operations
+
+The data set `calif_penn_2011.csv` on Canvas contains information about the housing stock of California and Pennsylvania, as of 2011. Information as aggregated into "Census tracts", geographic regions of a few thousand people which are supposed to be fairly homogeneous economically and socially.
+
+*General hint*: See [<http://www.statmethods.net/graphs/scatterplot.html>] or [[http://www.cookbook-r.com/Graphs/Scatterplots\_(ggplot2)/](http://www.cookbook-r.com/Graphs/Scatterplots_(ggplot2)/){.uri}] for hints for making scatterplots.
+
+For each of the following questions, insert some space and a new code chunk to address each question. I've gotten you started with the first few questions.
+
+5.  *Loading and cleaning*
+    a.  Load the data into a dataframe called `ca_pa`. The following code chunk will load this data into R. You may need to run `install.packages("tidyverse")` in the console prior to running this code chunk.
+
+```{r}
+library(tidyverse)
+ca_pa <- read_csv("calif_penn_2011.csv")
+```
+
+```         
+b. How many rows and columns does the dataframe have?
+```
+
+```{r}
+nrow(ca_pa)
+ncol(ca_pa)
+```
+
+```         
+c. Run this command, and explain, in words, what this does:
+```
+What this command is doing is finding all of the values within a row of data that contain no value such as N/A. It is then displaying how many N/A values there are in that specified row by using the rowSums function. 
+```         
+rowSums(apply(ca_pa,c(1,2),is.na))
+```
+
+```{r}
+rowSums(apply(ca_pa,c(1,2),is.na))
+```
+
+```         
+d. How many rows have at least one missing value?
+```
+
+```{r}
+missing_values <- which(apply(is.na(ca_pa), 1, any))
+missing_values
+length(missing_values)
+```
+For this last function I used AI to help me. I gave it the following prompt: which((apply(ca_pa,c(1,2),is.na))) what is this doing. I asked it for every detail that this function was doing so I could pick apart the areas that I needed to change in order for the function to print out the row numbers. I then asked it to help me change a few things to print out the row numbers instead of the cell numbers it was trying to print out. The problem with the previous function was it was taking the values column by column and putting them into basically one long vector, then printing out the position number where there was an N/A value. With the help of AI I was able to reconstruct the apply function to go row by row instead of searching both columns and rows, then I used the any function to have R search the rows and see if there were any N/A values. After this the code printed out the row number that had one or more N/A values in it. 
+```         
+e. The function `na.omit()` takes a dataframe and returns a new dataframe, omitting any row containing an NA value.  Use it to purge the data set of rows with incomplete data.
+```
+
+```{r}
+na.omit(ca_pa)
+
+
+```
+
+```         
+f. How many rows did this eliminate?
+
+
+```{r}
+```{r}
+11275 - 10605
+```
+
+```
+g. Do your answers in (d) and (f) agree? Explain.
+Yes my answers in (d) and (f) agree because in (d) I counted how many rows had values of N/A, and by using the na.omit() function I was able to remove all of the rows with one or more values of N/A. This means that since there were 670 rows with one or more N/A value, then 670 rows should be eliminated from the data set. 
+```
+
+6.  *Nobody Home*
+    The vacancy rate is the fraction of housing units which are not occupied. The dataframe contains columns giving the total number of housing units for each Census tract, and the number of vacant housing units.
+    a.  Add a new column to the dataframe which contains the vacancy rate. What are the minimum, maximum, mean, and median vacancy rates?
+    b.  Plot the vacancy rate against median house value. Comment on your plot.
+    c.  Plot vacancy rate against median house value separately for California and for Pennsylvania. Note that the state is recorded in the `STATEFP` variable, with California being state 6 and Pennsylvania state 42. Note here any issues that you see in the plots. Comment on the differences between California and Pennsylvania with respect to the relationship between vacancy rate and median house value.
+```
+
+```{r}
+```{r}
+ca_pa <- cbind(ca_pa, vacancy_rates = c((ca_pa$Vacant_units/ca_pa$Total_units)*100))
+
+```
+
+```
+```{r}
+```{r}
+ggplot(ca_pa, aes(x = Median_house_value, y = vacancy_rates)) + geom_point()
+## When looking at this plot we can see that in the lower house values, there is much more spread between the points. As the value continues to increase, there is less variability. There are far fewer outliers when looking at the median value at 1,000,000 dollars compared to the outliers at 250,000 or less. 
+```
+
+```
+```{r}
+```{r}
+california_data <- ca_pa[ca_pa$STATEFP == "06", ]
+penn_data <- ca_pa[ca_pa$STATEFP == "42", ]
+
+ggplot(california_data, aes(x= Median_house_value, y = vacancy_rates)) + geom_point()
+ggplot(penn_data, aes(x = Median_house_value, y = vacancy_rates)) + geom_point()
+
+## The main difference between the two plots is the median price of houses in the two states. Pennsylvania has a much lower median price than California. We can also see a much smaller vacancy rate in Pennsylvania compared to California. This could be due to vast population differences or many other confounding variables. 
+
+```
+
+```
+
+
+
+
+
